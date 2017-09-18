@@ -10,6 +10,24 @@ public final class StringUtils {
         return string == null || string.isEmpty();
     }
 
+    public static boolean isJavaIdentifier(final String identifier) {
+        if (isEmpty(identifier)) {
+            return false;
+        }
+
+        boolean verifyJavaStart = true;
+        for (final char c : identifier.toCharArray()) {
+            if (verifyJavaStart && !Character.isJavaIdentifierStart(c)) {
+                return false;
+            } else if (!verifyJavaStart && !Character.isJavaIdentifierPart(c)) {
+                return false;
+            }
+            verifyJavaStart = false;
+        }
+
+        return true;
+    }
+
     public static String snakeCaseToCamelCase(final String snakeCase) {
         return snakeCaseToCamelCase(snakeCase, false);
     }

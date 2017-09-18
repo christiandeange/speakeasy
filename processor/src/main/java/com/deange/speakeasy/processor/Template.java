@@ -66,7 +66,6 @@ public class Template {
         int fieldEnd = -1;
         int anonymousFieldCount = 0;
         boolean isInCurlyBrace = false;
-        boolean verifyJavaStart = false;
 
         for (int i = 0; i < mValue.length(); ++i) {
             final char c = mValue.charAt(i);
@@ -77,7 +76,6 @@ public class Template {
                 }
 
                 isInCurlyBrace = true;
-                verifyJavaStart = true;
                 fieldStart = i;
 
                 final String literalSubstring = mValue.substring(fieldEnd + 1, fieldStart);
@@ -98,23 +96,17 @@ public class Template {
                     fieldName = "arg" + anonymousFieldCount++;
                 }
 
+                if (!StringUtils.isJavaIdentifier(fieldName)) {
+                    throw new RuntimeException(
+                            "Field '" + fieldName + "' is not a valid Java identifier");
+                }
+
                 if (mFields.contains(fieldName)) {
-                    throw new RuntimeException("Duplicate field name '" + fieldName + "'");
+                    throw new RuntimeException("Duplicate field name: '" + fieldName + "'");
                 }
 
                 mFields.add(fieldName);
                 mParts.add(Part.field(fieldName));
-
-            } else {
-                if (isInCurlyBrace) {
-                    if (verifyJavaStart && !Character.isJavaIdentifierStart(c)) {
-                        throw new RuntimeException("Illegal java identifier starting character '" + c + "'");
-                    }
-                    if (!verifyJavaStart && !Character.isJavaIdentifierPart(c)) {
-                        throw new RuntimeException("Illegal java identifier character '" + c + "'");
-                    }
-                    verifyJavaStart = false;
-                }
             }
         }
 
@@ -124,7 +116,7 @@ public class Template {
 
         if (fieldEnd != mValue.length() - 1) {
             final String literalSubstring = mValue.substring(fieldEnd + 1);
-            if (literalSubstring.length() != 0) {
+            if (!literalSubstring.isEmpty()) {
                 mParts.add(Part.literal(literalSubstring));
             }
         }
