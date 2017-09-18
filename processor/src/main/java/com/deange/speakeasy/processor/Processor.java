@@ -106,7 +106,9 @@ public class Processor extends AbstractProcessor {
             template.setAlias(alias);
         }
 
-        mTemplates.put(resName, template);
+        if (template.isValidTemplate()) {
+            mTemplates.put(resName, template);
+        }
     }
 
     private TypeSpec generateClassForTemplate(

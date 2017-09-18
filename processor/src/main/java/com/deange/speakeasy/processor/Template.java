@@ -45,6 +45,10 @@ public class Template {
         mAlias = alias;
     }
 
+    public boolean isValidTemplate() {
+        return !mFields.isEmpty();
+    }
+
     @Override
     public String toString() {
         return "Template {name='" + name + "'}";
