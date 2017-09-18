@@ -15,7 +15,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +30,6 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic;
-import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import static com.deange.speakeasy.processor.Processor.OPTION_KEY;
@@ -61,12 +59,11 @@ public class Processor extends AbstractProcessor {
         }
 
         final String[] resDirs = processingEnv.getOptions().get(OPTION_KEY).split("\n");
-        for (final String resDir : resDirs) {
-            final File folder = new File(resDir);
-            if (folder.exists()) {
-                processFolder(folder);
-            }
-        }
+
+        Arrays.stream(resDirs)
+              .map(File::new)
+              .filter(File::exists)
+              .forEach(this::processFolder);
 
         generateTemplatesJavaFile();
 
@@ -74,24 +71,21 @@ public class Processor extends AbstractProcessor {
     }
 
     private void processFolder(final File resDir) {
-        final Collection<File> files = FileUtils.listFiles(resDir, new String[]{"xml"}, true);
-        for (final File xmlFile : files) {
-            try {
-                processFile(xmlFile);
-            } catch (final Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
+        FileUtils.listFiles(resDir, new String[]{"xml"}, true).forEach(this::processFile);
     }
 
-    private void processFile(final File xmlFile) throws Exception {
-        final DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-        final Document document = builder.parse(xmlFile);
+    private void processFile(final File xmlFile) {
+        try {
+            final DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            final Document document = factory.newDocumentBuilder().parse(xmlFile);
 
-        final NodeList nodes = document.getElementsByTagName("string");
-        for (int i = 0; i < nodes.getLength(); ++i) {
-            final Element node = (Element) nodes.item(i);
-            processString(node);
+            final NodeList nodes = document.getElementsByTagName("string");
+            for (int i = 0; i < nodes.getLength(); ++i) {
+                final Element node = (Element) nodes.item(i);
+                processString(node);
+            }
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -113,32 +107,32 @@ public class Processor extends AbstractProcessor {
 
     private TypeSpec generateClassForTemplate(
             final String resName,
-            final Template template,
+            final Template resTemplate,
             final TypeSpec... interfaces) {
 
         final String className = StringUtils.snakeCaseToCamelCase(resName, true);
         final ClassName clazz = ClassName.get(PACKAGE_NAME, className);
 
-        final String original = template.value;
-        final List<String> fields = template.getFields();
+        final String original = resTemplate.getValue();
+        final List<String> fields = resTemplate.getFields();
 
-        final TypeSpec.Builder builder = TypeSpec.classBuilder(className);
-        builder.addModifiers(Modifier.PUBLIC);
-        builder.addSuperinterfaces(
+        final TypeSpec.Builder template = TypeSpec.classBuilder(className);
+        template.addModifiers(Modifier.PUBLIC);
+        template.addSuperinterfaces(
                 Arrays.stream(interfaces)
                       .map(superInterface -> ClassName.get(PACKAGE_NAME, superInterface.name))
                       .collect(Collectors.toList()));
 
         // Package-private constructor
-        builder.addMethod(MethodSpec.constructorBuilder().build());
+        template.addMethod(MethodSpec.constructorBuilder().build());
 
         for (final String fieldName : fields) {
-            builder.addField(
+            template.addField(
                     FieldSpec.builder(String.class, fieldName).addModifiers(Modifier.PRIVATE)
                              .build()
             );
 
-            builder.addMethod(
+            template.addMethod(
                     MethodSpec.methodBuilder(fieldName)
                               .addModifiers(Modifier.PUBLIC)
                               .addParameter(String.class, fieldName)
@@ -149,7 +143,7 @@ public class Processor extends AbstractProcessor {
             );
         }
 
-        final MethodSpec.Builder buildBuilder =
+        final MethodSpec.Builder build =
                 MethodSpec.methodBuilder("build")
                           .addAnnotation(Annotations.OVERRIDE)
                           .addModifiers(Modifier.PUBLIC)
@@ -157,17 +151,17 @@ public class Processor extends AbstractProcessor {
 
         if (fields.isEmpty()) {
             // No fields in the string value
-            buildBuilder.addStatement("return $S", original);
+            build.addStatement("return $S", original);
 
         } else {
-            buildBuilder.addCode("return new $T()", StringBuilder.class);
-            template.getParts().forEach(part -> part.appendValue(buildBuilder));
-            buildBuilder.addCode(".toString();\n");
+            build.addCode("return new $T()", StringBuilder.class);
+            resTemplate.getParts().forEach(part -> part.appendValue(build));
+            build.addCode(".toString();\n");
         }
 
-        builder.addMethod(buildBuilder.build());
+        template.addMethod(build.build());
 
-        return builder.build();
+        return template.build();
     }
 
     private void generateTemplatesJavaFile() {

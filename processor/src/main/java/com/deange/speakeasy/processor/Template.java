@@ -5,17 +5,16 @@ import java.util.List;
 
 public class Template {
 
-    public final String name;
-    public final String value;
-
-    private String mAlias;
-
+    private final String mName;
+    private final String mValue;
     private final List<String> mFields = new ArrayList<>();
     private final List<Part> mParts = new ArrayList<>();
 
+    private String mAlias;
+
     public Template(final String name, final String value) {
-        this.name = name;
-        this.value = value;
+        this.mName = name;
+        this.mValue = value;
         this.mAlias = name;
     }
 
@@ -37,12 +36,20 @@ public class Template {
         if (!StringUtils.isEmpty(mAlias)) {
             return mAlias;
         } else {
-            return StringUtils.snakeCaseToCamelCase(name);
+            return StringUtils.snakeCaseToCamelCase(mName);
         }
     }
 
     public void setAlias(final String alias) {
         mAlias = alias;
+    }
+
+    public String getName() {
+        return mName;
+    }
+
+    public String getValue() {
+        return mValue;
     }
 
     public boolean isValidTemplate() {
@@ -51,7 +58,7 @@ public class Template {
 
     @Override
     public String toString() {
-        return "Template {name='" + name + "'}";
+        return "Template {name='" + mName + "'}";
     }
 
     private void gatherFields() {
@@ -61,8 +68,8 @@ public class Template {
         boolean isInCurlyBrace = false;
         boolean verifyJavaStart = false;
 
-        for (int i = 0; i < value.length(); ++i) {
-            final char c = value.charAt(i);
+        for (int i = 0; i < mValue.length(); ++i) {
+            final char c = mValue.charAt(i);
 
             if (c == '{') {
                 if (isInCurlyBrace) {
@@ -73,7 +80,7 @@ public class Template {
                 verifyJavaStart = true;
                 fieldStart = i;
 
-                final String literalSubstring = value.substring(fieldEnd + 1, fieldStart);
+                final String literalSubstring = mValue.substring(fieldEnd + 1, fieldStart);
                 if (literalSubstring.length() != 0) {
                     mParts.add(Part.literal(literalSubstring));
                 }
@@ -86,7 +93,7 @@ public class Template {
                 isInCurlyBrace = false;
                 fieldEnd = i;
 
-                String fieldName = value.substring(fieldStart + 1, fieldEnd);
+                String fieldName = mValue.substring(fieldStart + 1, fieldEnd);
                 if (fieldName.length() == 0) {
                     fieldName = "arg" + anonymousFieldCount++;
                 }
@@ -115,8 +122,8 @@ public class Template {
             throw new RuntimeException("Unterminated field starting at position " + fieldStart);
         }
 
-        if (fieldEnd != value.length() - 1) {
-            final String literalSubstring = value.substring(fieldEnd + 1);
+        if (fieldEnd != mValue.length() - 1) {
+            final String literalSubstring = mValue.substring(fieldEnd + 1);
             if (literalSubstring.length() != 0) {
                 mParts.add(Part.literal(literalSubstring));
             }
