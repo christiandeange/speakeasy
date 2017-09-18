@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Speakeasy</string>
+    <string name="greeting_2">Hello {name}, you are {age} years old!</string>
+    <string name="main_activity_greeting" alias="greeting">Hello, {name}!</string>
+</resources>

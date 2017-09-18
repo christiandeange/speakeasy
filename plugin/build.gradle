@@ -1,0 +1,10 @@
+apply plugin: 'groovy'
+apply plugin: 'maven'
+
+group = 'com.deange.speakeasy'
+version = '1.0.0'
+
+dependencies {
+    implementation gradleApi()
+    implementation localGroovy()
+}
