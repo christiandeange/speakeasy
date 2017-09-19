@@ -3,19 +3,19 @@ package com.deange.speakeasy.processor;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.deange.speakeasy.processor.StringUtils.isJavaIdentifier;
+
 public class Template {
 
     private final String mName;
     private final String mValue;
-    private final List<String> mFields = new ArrayList<>();
+    private final List<FieldConfig> mFields = new ArrayList<>();
+    private final List<String> mFieldNames = new ArrayList<>();
     private final List<Part> mParts = new ArrayList<>();
 
-    private String mAlias;
-
     public Template(final String name, final String value) {
-        this.mName = name;
-        this.mValue = value;
-        this.mAlias = name;
+        mName = name;
+        mValue = value;
     }
 
     public static Template parse(final String resName, final String resValue) {
@@ -24,24 +24,12 @@ public class Template {
         return template;
     }
 
-    public List<String> getFields() {
+    public List<FieldConfig> getFields() {
         return mFields;
     }
 
     public List<Part> getParts() {
         return mParts;
-    }
-
-    public String getMethodName() {
-        if (!StringUtils.isEmpty(mAlias)) {
-            return mAlias;
-        } else {
-            return StringUtils.snakeCaseToCamelCase(mName);
-        }
-    }
-
-    public void setAlias(final String alias) {
-        mAlias = alias;
     }
 
     public String getName() {
@@ -79,7 +67,7 @@ public class Template {
                 fieldStart = i;
 
                 final String literalSubstring = mValue.substring(fieldEnd + 1, fieldStart);
-                if (literalSubstring.length() != 0) {
+                if (!literalSubstring.isEmpty()) {
                     mParts.add(Part.literal(literalSubstring));
                 }
 
@@ -91,22 +79,26 @@ public class Template {
                 isInCurlyBrace = false;
                 fieldEnd = i;
 
-                String fieldName = mValue.substring(fieldStart + 1, fieldEnd);
-                if (fieldName.length() == 0) {
-                    fieldName = "arg" + anonymousFieldCount++;
+                String config = mValue.substring(fieldStart + 1, fieldEnd);
+                if (config.isEmpty()) {
+                    config = "arg" + anonymousFieldCount++;
                 }
 
-                if (!StringUtils.isJavaIdentifier(fieldName)) {
+                final FieldConfig fieldConfig = FieldConfig.create(config);
+                final String identifier = fieldConfig.getIdentifier();
+
+                if (!isJavaIdentifier(identifier)) {
                     throw new RuntimeException(
-                            "Field '" + fieldName + "' is not a valid Java identifier");
+                            "Field '" + identifier + "' is not a valid Java identifier");
                 }
 
-                if (mFields.contains(fieldName)) {
-                    throw new RuntimeException("Duplicate field name: '" + fieldName + "'");
+                if (mFieldNames.contains(identifier)) {
+                    throw new RuntimeException("Duplicate field name: '" + identifier + "'");
                 }
 
-                mFields.add(fieldName);
-                mParts.add(Part.field(fieldName));
+                mFieldNames.add(identifier);
+                mFields.add(fieldConfig);
+                mParts.add(Part.field(identifier));
             }
         }
 

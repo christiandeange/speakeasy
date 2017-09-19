@@ -1,6 +1,18 @@
 package com.deange.speakeasy.processor;
 
+import java.util.Arrays;
+import java.util.List;
+
 public final class StringUtils {
+
+    private static final List<String> JAVA_KEYWORDS = Arrays.asList(
+            "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class",
+            "const", "continue", "default", "do", "double", "else", "enum", "extends", "false",
+            "final", "finally", "float", "for", "goto", "if", "implements", "import", "instanceof",
+            "int", "interface", "long", "native", "new", "null", "package", "private", "protected",
+            "public", "return", "short", "static", "strictfp", "super", "switch", "synchronized",
+            "this", "throw", "throws", "transient", "true", "try", "void", "volatile", "while"
+    );
 
     private StringUtils() {
         throw new AssertionError();
@@ -11,28 +23,30 @@ public final class StringUtils {
     }
 
     public static boolean isJavaIdentifier(final String identifier) {
-        if (isEmpty(identifier)) {
+        if (identifier.isEmpty()) {
             return false;
-        }
-
-        boolean verifyJavaStart = true;
-        for (final char c : identifier.toCharArray()) {
-            if (verifyJavaStart && !Character.isJavaIdentifierStart(c)) {
-                return false;
-            } else if (!verifyJavaStart && !Character.isJavaIdentifierPart(c)) {
-                return false;
+        } else if (JAVA_KEYWORDS.contains(identifier)) {
+            return false;
+        } else if (!Character.isJavaIdentifierStart(identifier.charAt(0))) {
+            return false;
+        } else {
+            for (int i = 1; i < identifier.length(); ++i) {
+                if (!Character.isJavaIdentifierPart(identifier.charAt(i))) {
+                    return false;
+                }
             }
-            verifyJavaStart = false;
-        }
 
-        return true;
+            return true;
+        }
     }
 
     public static String snakeCaseToCamelCase(final String snakeCase) {
         return snakeCaseToCamelCase(snakeCase, false);
     }
 
-    public static String snakeCaseToCamelCase(final String snakeCase, final boolean capitalizeFirst) {
+    public static String snakeCaseToCamelCase(
+            final String snakeCase,
+            final boolean capitalizeFirst) {
         final String[] parts = snakeCase.split("_");
 
         final StringBuilder sb = new StringBuilder();

@@ -33,6 +33,7 @@ import javax.tools.Diagnostic;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import static com.deange.speakeasy.processor.Processor.OPTION_KEY;
+import static com.deange.speakeasy.processor.StringUtils.isJavaIdentifier;
 
 @SupportedAnnotationTypes("com.deange.speakeasy.StringTemplates")
 @SupportedSourceVersion(SourceVersion.RELEASE_7)
@@ -91,14 +92,19 @@ public class Processor extends AbstractProcessor {
 
     private void processString(final Element node) {
         final String resName = node.getAttribute("name");
+        final String alias = node.getAttribute("alias");
         final String resValue = node.getTextContent();
 
-        final Template template = Template.parse(resName, resValue);
+        final String templateName = alias.isEmpty() ? resName : alias;
 
-        final String alias = node.getAttribute("alias");
-        if (!StringUtils.isEmpty(alias)) {
-            template.setAlias(alias);
+        if (!isJavaIdentifier(templateName)) {
+            processingEnv.getMessager().printMessage(
+                    Diagnostic.Kind.ERROR,
+                    "Field '" + templateName + "' is not a valid Java identifier");
+            return;
         }
+
+        final Template template = Template.parse(templateName, resValue);
 
         if (template.isValidTemplate()) {
             mTemplates.put(resName, template);
@@ -114,7 +120,7 @@ public class Processor extends AbstractProcessor {
         final ClassName clazz = ClassName.get(PACKAGE_NAME, className);
 
         final String original = resTemplate.getValue();
-        final List<String> fields = resTemplate.getFields();
+        final List<FieldConfig> fields = resTemplate.getFields();
 
         final TypeSpec.Builder template = TypeSpec.classBuilder(className);
         template.addModifiers(Modifier.PUBLIC);
@@ -126,21 +132,33 @@ public class Processor extends AbstractProcessor {
         // Package-private constructor
         template.addMethod(MethodSpec.constructorBuilder().build());
 
-        for (final String fieldName : fields) {
+        for (final FieldConfig field : fields) {
+            final String name = field.getIdentifier();
+            final String format = field.getFormat();
+
             template.addField(
-                    FieldSpec.builder(String.class, fieldName).addModifiers(Modifier.PRIVATE)
+                    FieldSpec.builder(String.class, name)
+                             .addModifiers(Modifier.PRIVATE)
                              .build()
             );
 
-            template.addMethod(
-                    MethodSpec.methodBuilder(fieldName)
+            final MethodSpec.Builder fieldBuilder =
+                    MethodSpec.methodBuilder(name)
                               .addModifiers(Modifier.PUBLIC)
-                              .addParameter(String.class, fieldName)
-                              .returns(clazz)
-                              .addStatement("this.$N = $N", fieldName, fieldName)
-                              .addStatement("return this")
-                              .build()
-            );
+                              .returns(clazz);
+
+            if (format == null) {
+                fieldBuilder.addParameter(String.class, name)
+                            .addStatement("this.$N = $N", name, name);
+            } else {
+                // Use varargs to match String.format(String, Object...) method signature
+                fieldBuilder.addParameter(Object[].class, name).varargs()
+                            .addStatement("this.$N = String.format($S, $N)", name, format, name);
+            }
+
+            template.addMethod(
+                    fieldBuilder.addStatement("return this")
+                                .build());
         }
 
         final MethodSpec.Builder build =
@@ -187,7 +205,7 @@ public class Processor extends AbstractProcessor {
 
             final ClassName templateClass = ClassName.get(PACKAGE_NAME, typeSpec.name);
             final MethodSpec method =
-                    MethodSpec.methodBuilder(template.getMethodName())
+                    MethodSpec.methodBuilder(template.getName())
                               .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                               .returns(templateClass)
                               .addStatement("return new $N()", typeSpec)

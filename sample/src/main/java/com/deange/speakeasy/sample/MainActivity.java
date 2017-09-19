@@ -8,13 +8,12 @@ import com.deange.speakeasy.generated.Templates;
 public class MainActivity extends AppCompatActivity {
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        final String greeting = Templates.greeting().name("Christian").build();
-        final String mike = Templates.greeting_2().name("Mike").age("24").build();
-
-        int i = 0;
+        Templates.greeting().name("Christian").build();
+        Templates.name_greeting().name("Michael").nickname("Mike").build();
+        Templates.age_greeting().age(24).build();
     }
 }
