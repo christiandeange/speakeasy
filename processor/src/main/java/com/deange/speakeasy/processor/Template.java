@@ -50,20 +50,19 @@ public class Template {
     }
 
     private void gatherFields() {
-        int fieldStart = 0;
+        int fieldStart = -1;
         int fieldEnd = -1;
-        int anonymousFieldCount = 0;
-        boolean isInCurlyBrace = false;
+        boolean parsingFieldName = false;
 
         for (int i = 0; i < mValue.length(); ++i) {
             final char c = mValue.charAt(i);
 
             if (c == '{') {
-                if (isInCurlyBrace) {
-                    throw new RuntimeException("Nested field template detected at position " + i);
+                if (parsingFieldName) {
+                    failParse("Nested field template detected at position " + i);
                 }
 
-                isInCurlyBrace = true;
+                parsingFieldName = true;
                 fieldStart = i;
 
                 final String literalSubstring = mValue.substring(fieldEnd + 1, fieldStart);
@@ -72,28 +71,24 @@ public class Template {
                 }
 
             } else if (c == '}') {
-                if (!isInCurlyBrace) {
-                    throw new RuntimeException("Field unexpectedly ended at position " + i);
+                if (!parsingFieldName) {
+                    failParse("Field unexpectedly ended at position " + i);
                 }
 
-                isInCurlyBrace = false;
+                parsingFieldName = false;
                 fieldEnd = i;
 
-                String config = mValue.substring(fieldStart + 1, fieldEnd);
-                if (config.isEmpty()) {
-                    config = "arg" + anonymousFieldCount++;
-                }
-
+                final String config = mValue.substring(fieldStart + 1, fieldEnd);
                 final FieldConfig fieldConfig = FieldConfig.create(config);
                 final String identifier = fieldConfig.getIdentifier();
 
                 if (!isJavaIdentifier(identifier)) {
-                    throw new RuntimeException(
+                    failParse(
                             "Field '" + identifier + "' is not a valid Java identifier");
                 }
 
                 if (mFieldNames.contains(identifier)) {
-                    throw new RuntimeException("Duplicate field name: '" + identifier + "'");
+                    failParse("Duplicate field name: '" + identifier + "'");
                 }
 
                 mFieldNames.add(identifier);
@@ -102,8 +97,8 @@ public class Template {
             }
         }
 
-        if (isInCurlyBrace) {
-            throw new RuntimeException("Unterminated field starting at position " + fieldStart);
+        if (parsingFieldName) {
+            failParse("Unterminated field starting at position " + fieldStart);
         }
 
         if (fieldEnd != mValue.length() - 1) {
@@ -112,5 +107,9 @@ public class Template {
                 mParts.add(Part.literal(literalSubstring));
             }
         }
+    }
+
+    private void failParse(final String message) {
+        throw new RuntimeException("Template '" + mName + "': " + message);
     }
 }
