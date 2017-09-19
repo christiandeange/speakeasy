@@ -57,6 +57,11 @@ public class Template {
         for (int i = 0; i < mValue.length(); ++i) {
             final char c = mValue.charAt(i);
 
+            if (c == '\\') {
+                i++;
+                continue;
+            }
+
             if (c == '{') {
                 if (parsingFieldName) {
                     failParse("Nested field template detected at position " + i);
