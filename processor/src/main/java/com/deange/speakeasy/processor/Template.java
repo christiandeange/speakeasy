@@ -57,6 +57,7 @@ public class Template {
         for (int i = 0; i < mValue.length(); ++i) {
             final char c = mValue.charAt(i);
 
+            // Allow escaping curly braces
             if (c == '\\') {
                 i++;
                 continue;
@@ -70,10 +71,8 @@ public class Template {
                 parsingFieldName = true;
                 fieldStart = i;
 
-                final String literalSubstring = mValue.substring(fieldEnd + 1, fieldStart);
-                if (!literalSubstring.isEmpty()) {
-                    mParts.add(Part.literal(literalSubstring));
-                }
+                final String literalString = mValue.substring(fieldEnd + 1, fieldStart);
+                parseLiteral(literalString);
 
             } else if (c == '}') {
                 if (!parsingFieldName) {
@@ -83,22 +82,8 @@ public class Template {
                 parsingFieldName = false;
                 fieldEnd = i;
 
-                final String config = mValue.substring(fieldStart + 1, fieldEnd);
-                final FieldConfig fieldConfig = FieldConfig.create(config);
-                final String identifier = fieldConfig.getIdentifier();
-
-                if (!isJavaIdentifier(identifier)) {
-                    failParse(
-                            "Field '" + identifier + "' is not a valid Java identifier");
-                }
-
-                if (mFieldNames.contains(identifier)) {
-                    failParse("Duplicate field name: '" + identifier + "'");
-                }
-
-                mFieldNames.add(identifier);
-                mFields.add(fieldConfig);
-                mParts.add(Part.field(identifier));
+                final String configString = mValue.substring(fieldStart + 1, fieldEnd);
+                parseField(configString);
             }
         }
 
@@ -111,6 +96,29 @@ public class Template {
             if (!literalSubstring.isEmpty()) {
                 mParts.add(Part.literal(literalSubstring));
             }
+        }
+    }
+
+    private void parseField(final String fieldString) {
+        final FieldConfig fieldConfig = FieldConfig.create(fieldString);
+        final String identifier = fieldConfig.getIdentifier();
+
+        if (!isJavaIdentifier(identifier)) {
+            failParse("Field '" + identifier + "' is not a valid Java identifier");
+        }
+
+        if (mFieldNames.contains(identifier)) {
+            failParse("Duplicate field name: '" + identifier + "'");
+        }
+
+        mFieldNames.add(identifier);
+        mFields.add(fieldConfig);
+        mParts.add(Part.field(identifier));
+    }
+
+    private void parseLiteral(final String literalString) {
+        if (!literalString.isEmpty()) {
+            mParts.add(Part.literal(literalString));
         }
     }
 
