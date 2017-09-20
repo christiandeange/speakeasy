@@ -15,5 +15,7 @@ public class MainActivity extends AppCompatActivity {
         Templates.greeting().name("Christian").build();
         Templates.name_greeting().name("Michael").nickname("Mike").build();
         Templates.age_greeting().age(24).build();
+
+        Templates.greeting().name(getString(R.string.mock_user)).build();
     }
 }

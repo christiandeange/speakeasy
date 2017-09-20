@@ -1,6 +1,7 @@
 package com.deange.speakeasy.processor;
 
 import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
@@ -32,6 +33,8 @@ import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic;
 import javax.xml.parsers.DocumentBuilderFactory;
 
+import static com.deange.speakeasy.processor.CodeUtils.indent;
+import static com.deange.speakeasy.processor.CodeUtils.unindent;
 import static com.deange.speakeasy.processor.Processor.OPTION_KEY;
 import static com.deange.speakeasy.processor.StringUtils.isJavaIdentifier;
 
@@ -116,6 +119,9 @@ public class Processor extends AbstractProcessor {
             final Template resTemplate,
             final TypeSpec... interfaces) {
 
+        final ClassName spannableStringBuilder =
+                ClassName.get("android.text", "SpannableStringBuilder");
+
         final String className = StringUtils.snakeCaseToCamelCase(resName, true);
         final ClassName clazz = ClassName.get(PACKAGE_NAME, className);
 
@@ -137,7 +143,7 @@ public class Processor extends AbstractProcessor {
             final String format = field.getFormat();
 
             template.addField(
-                    FieldSpec.builder(String.class, name)
+                    FieldSpec.builder(CharSequence.class, name)
                              .addModifiers(Modifier.PRIVATE)
                              .build()
             );
@@ -148,7 +154,7 @@ public class Processor extends AbstractProcessor {
                               .returns(clazz);
 
             if (format == null) {
-                fieldBuilder.addParameter(String.class, name)
+                fieldBuilder.addParameter(CharSequence.class, name)
                             .addStatement("this.$N = $N", name, name);
             } else {
                 // Use varargs to match String.format(String, Object...) method signature
@@ -165,21 +171,35 @@ public class Processor extends AbstractProcessor {
                 MethodSpec.methodBuilder("build")
                           .addAnnotation(Annotations.OVERRIDE)
                           .addModifiers(Modifier.PUBLIC)
-                          .returns(String.class);
+                          .returns(CharSequence.class);
 
-        if (fields.isEmpty()) {
-            // No fields in the string value
-            build.addStatement("return $S", original);
+        final CodeBlock.Builder codeBlock = CodeBlock.builder();
+        codeBlock.add("return new $T()", spannableStringBuilder);
 
-        } else {
-            build.addCode("return new $T()", StringBuilder.class);
-            resTemplate.getParts().forEach(part -> part.appendValue(build));
-            build.addCode(".toString();\n");
-        }
+        indent(codeBlock, 4);
+        resTemplate.getParts().forEach(part -> appendValue(codeBlock, part));
+        unindent(codeBlock, 4);
+        codeBlock.addStatement("");
+
+        build.addCode(codeBlock.build());
 
         template.addMethod(build.build());
 
         return template.build();
+    }
+
+    private void appendValue(final CodeBlock.Builder builder, final Part part) {
+        builder.add("\n");
+
+        if (part instanceof Part.Literal) {
+            builder.add(".append($S)", part.getValue());
+
+        } else if (part instanceof Part.Field) {
+            builder.add(".append($L)", part.getValue());
+
+        } else {
+            throw new IllegalArgumentException("Unexpected Part: " + part);
+        }
     }
 
     private void generateTemplatesJavaFile() {
@@ -188,7 +208,7 @@ public class Processor extends AbstractProcessor {
         final MethodSpec build =
                 MethodSpec.methodBuilder("build")
                           .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
-                          .returns(String.class)
+                          .returns(CharSequence.class)
                           .build();
 
         final TypeSpec buildable = TypeSpec.interfaceBuilder("Buildable").addMethod(build).build();

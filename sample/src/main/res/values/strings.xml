@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">Speakeasy</string>
+    <string name="mock_user">Mock User</string>
+
     <string name="simple_greeting" alias="greeting">Hello, {name}!</string>
     <string name="name_greeting">Hello {name}, your nickname is {nickname}!</string>
     <string name="age_greeting">I am {%d|age} years old.</string>
