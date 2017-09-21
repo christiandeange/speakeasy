@@ -22,3 +22,10 @@ allprojects {
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
+
+ext {
+    appcompat = 'com.android.support:appcompat-v7:25.0.1'
+    phrase = 'com.squareup.phrase:phrase:1.1.0'
+    commonsio = 'commons-io:commons-io:2.5'
+    javapoet = 'com.squareup:javapoet:1.8.0'
+}

@@ -16,3 +16,8 @@ android {
         targetCompatibility JavaVersion.VERSION_1_7
     }
 }
+
+dependencies {
+    api phrase
+    api project(':annotation')
+}

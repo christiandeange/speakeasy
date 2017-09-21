@@ -4,8 +4,8 @@ targetCompatibility = '1.8'
 sourceCompatibility = '1.8'
 
 dependencies {
-    compile 'commons-io:commons-io:2.5'
-    compile 'com.squareup:javapoet:1.8.0'
+    implementation commonsio
+    implementation javapoet
 
-    project(path: ':plugin')
+    implementation project(':annotation')
 }

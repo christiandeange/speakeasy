@@ -4,7 +4,7 @@ import android.app.Application;
 
 import com.deange.speakeasy.StringTemplates;
 
-@StringTemplates
+@StringTemplates(R.class)
 public class MainApplication extends Application {
 
 }

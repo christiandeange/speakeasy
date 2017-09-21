@@ -7,20 +7,26 @@ import static com.deange.speakeasy.processor.StringUtils.isJavaIdentifier;
 
 public class Template {
 
-    private final String mName;
+    private final String mTemplateName;
+    private final String mResName;
     private final String mValue;
+
     private final List<FieldConfig> mFields = new ArrayList<>();
     private final List<String> mFieldNames = new ArrayList<>();
     private final List<Part> mParts = new ArrayList<>();
 
-    public Template(final String name, final String value) {
-        mName = name;
+    private Template(final String templateName, final String resName, final String value) {
+        mTemplateName = templateName;
+        mResName = resName;
         mValue = value;
     }
 
-    public static Template parse(final String resName, final String resValue) {
-        final Template template = new Template(resName, resValue);
-        template.gatherFields();
+    public static Template parse(
+            final String templateName,
+            final String resName,
+            final String resValue) {
+        final Template template = new Template(templateName, resName, resValue);
+        template.parseFields();
         return template;
     }
 
@@ -32,8 +38,12 @@ public class Template {
         return mParts;
     }
 
-    public String getName() {
-        return mName;
+    public String getTemplateName() {
+        return mTemplateName;
+    }
+
+    public String getResName() {
+        return mResName;
     }
 
     public String getValue() {
@@ -46,10 +56,10 @@ public class Template {
 
     @Override
     public String toString() {
-        return "Template {name='" + mName + "'}";
+        return "Template {name='" + mTemplateName + "'}";
     }
 
-    private void gatherFields() {
+    private void parseFields() {
         int fieldStart = -1;
         int fieldEnd = -1;
         boolean parsingFieldName = false;
@@ -123,6 +133,6 @@ public class Template {
     }
 
     private void failParse(final String message) {
-        throw new RuntimeException("Template '" + mName + "': " + message);
+        throw new RuntimeException("Template '" + mTemplateName + "': " + message);
     }
 }

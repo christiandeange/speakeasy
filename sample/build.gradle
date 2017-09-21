@@ -12,14 +12,10 @@ android {
         versionCode 1
         versionName '1.0.1'
     }
-
-    applicationVariants.all { variant ->
-        variant.buildType.name
-    }
 }
 
 dependencies {
-    implementation 'com.android.support:appcompat-v7:25.0.1'
+    implementation appcompat
 
     implementation project(path: ':library')
     annotationProcessor project(':processor')

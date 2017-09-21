@@ -1,10 +1,11 @@
 package com.deange.speakeasy.processor;
 
+import com.deange.speakeasy.StringTemplates;
 import com.squareup.javapoet.ClassName;
-import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.ParameterSpec;
 import com.squareup.javapoet.TypeSpec;
 
 import org.apache.commons.io.FileUtils;
@@ -27,25 +28,32 @@ import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.annotation.processing.SupportedOptions;
 import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.AnnotatedConstruct;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.MirroredTypeException;
+import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 import javax.xml.parsers.DocumentBuilderFactory;
 
-import static com.deange.speakeasy.processor.CodeUtils.indent;
-import static com.deange.speakeasy.processor.CodeUtils.unindent;
 import static com.deange.speakeasy.processor.Processor.OPTION_KEY;
 import static com.deange.speakeasy.processor.StringUtils.isJavaIdentifier;
 
 @SupportedAnnotationTypes("com.deange.speakeasy.StringTemplates")
 @SupportedSourceVersion(SourceVersion.RELEASE_7)
 @SupportedOptions(OPTION_KEY)
-public class Processor extends AbstractProcessor {
+public class Processor
+        extends AbstractProcessor
+        implements
+        Classes,
+        Annotations {
+
     public static final String PACKAGE_NAME = "com.deange.speakeasy.generated";
     public static final String OPTION_KEY = "resDirs";
 
     private final Map<String, Template> mTemplates = new HashMap<>();
+    private TypeMirror rDotJavaFile;
 
     @Override
     public boolean process(final Set<? extends TypeElement> set, final RoundEnvironment env) {
@@ -60,6 +68,15 @@ public class Processor extends AbstractProcessor {
                     Diagnostic.Kind.ERROR,
                     "\"" + OPTION_KEY + "\" annotation processor argument not provided");
             return true;
+        }
+
+        final AnnotatedConstruct annotatedElement =
+                env.getElementsAnnotatedWith(StringTemplates.class).iterator().next();
+        try {
+            // This will force a reflective exception
+            annotatedElement.getAnnotation(StringTemplates.class).value();
+        } catch (final MirroredTypeException mte) {
+            rDotJavaFile = mte.getTypeMirror();
         }
 
         final String[] resDirs = processingEnv.getOptions().get(OPTION_KEY).split("\n");
@@ -107,7 +124,7 @@ public class Processor extends AbstractProcessor {
             return;
         }
 
-        final Template template = Template.parse(templateName, resValue);
+        final Template template = Template.parse(templateName, resName, resValue);
 
         if (template.isValidTemplate()) {
             mTemplates.put(resName, template);
@@ -115,38 +132,43 @@ public class Processor extends AbstractProcessor {
     }
 
     private TypeSpec generateClassForTemplate(
-            final String resName,
-            final Template resTemplate,
+            final Template template,
             final TypeSpec... interfaces) {
 
-        final ClassName spannableStringBuilder =
-                ClassName.get("android.text", "SpannableStringBuilder");
-
+        final String resName = template.getResName();
         final String className = StringUtils.snakeCaseToCamelCase(resName, true);
         final ClassName clazz = ClassName.get(PACKAGE_NAME, className);
 
-        final String original = resTemplate.getValue();
-        final List<FieldConfig> fields = resTemplate.getFields();
+        final List<FieldConfig> fields = template.getFields();
 
-        final TypeSpec.Builder template = TypeSpec.classBuilder(className);
-        template.addModifiers(Modifier.PUBLIC);
-        template.addSuperinterfaces(
+        final TypeSpec.Builder templateClass = TypeSpec.classBuilder(className);
+        templateClass.addModifiers(Modifier.PUBLIC);
+        templateClass.addSuperinterfaces(
                 Arrays.stream(interfaces)
                       .map(superInterface -> ClassName.get(PACKAGE_NAME, superInterface.name))
                       .collect(Collectors.toList()));
 
+        // Phrase member field
+        templateClass.addField(
+                FieldSpec.builder(PHRASE, "mPhrase")
+                         .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                         .build()
+        );
+
         // Package-private constructor
-        template.addMethod(MethodSpec.constructorBuilder().build());
+        templateClass.addMethod(
+                MethodSpec.constructorBuilder()
+                          .addParameter(
+                                  ParameterSpec.builder(CONTEXT, "context")
+                                               .addAnnotation(NONNULL)
+                                               .build())
+                          .addStatement("mPhrase = $T.from(context, $T.string.$L)",
+                                        PHRASE, rDotJavaFile, resName)
+                          .build());
 
         for (final FieldConfig field : fields) {
             final String name = field.getIdentifier();
             final String format = field.getFormat();
-
-            template.addField(
-                    FieldSpec.builder(CharSequence.class, name)
-                             .addModifiers(Modifier.PRIVATE)
-                             .build()
-            );
 
             final MethodSpec.Builder fieldBuilder =
                     MethodSpec.methodBuilder(name)
@@ -154,15 +176,19 @@ public class Processor extends AbstractProcessor {
                               .returns(clazz);
 
             if (format == null) {
-                fieldBuilder.addParameter(CharSequence.class, name)
-                            .addStatement("this.$N = $N", name, name);
+                fieldBuilder.addParameter(
+                        ParameterSpec.builder(CharSequence.class, name)
+                                     .addAnnotation(NONNULL)
+                                     .build())
+                            .addStatement("mPhrase.put($S, $L)", name, name);
             } else {
                 // Use varargs to match String.format(String, Object...) method signature
                 fieldBuilder.addParameter(Object[].class, name).varargs()
-                            .addStatement("this.$N = String.format($S, $N)", name, format, name);
+                            .addStatement("mPhrase.put($S, String.format($S, $L))",
+                                          name, format, name);
             }
 
-            template.addMethod(
+            templateClass.addMethod(
                     fieldBuilder.addStatement("return this")
                                 .build());
         }
@@ -171,35 +197,12 @@ public class Processor extends AbstractProcessor {
                 MethodSpec.methodBuilder("build")
                           .addAnnotation(Annotations.OVERRIDE)
                           .addModifiers(Modifier.PUBLIC)
-                          .returns(CharSequence.class);
+                          .returns(CharSequence.class)
+                          .addStatement("return mPhrase.format()");
 
-        final CodeBlock.Builder codeBlock = CodeBlock.builder();
-        codeBlock.add("return new $T()", spannableStringBuilder);
+        templateClass.addMethod(build.build());
 
-        indent(codeBlock, 4);
-        resTemplate.getParts().forEach(part -> appendValue(codeBlock, part));
-        unindent(codeBlock, 4);
-        codeBlock.addStatement("");
-
-        build.addCode(codeBlock.build());
-
-        template.addMethod(build.build());
-
-        return template.build();
-    }
-
-    private void appendValue(final CodeBlock.Builder builder, final Part part) {
-        builder.add("\n");
-
-        if (part instanceof Part.Literal) {
-            builder.add(".append($S)", part.getValue());
-
-        } else if (part instanceof Part.Field) {
-            builder.add(".append($L)", part.getValue());
-
-        } else {
-            throw new IllegalArgumentException("Unexpected Part: " + part);
-        }
+        return templateClass.build();
     }
 
     private void generateTemplatesJavaFile() {
@@ -217,18 +220,19 @@ public class Processor extends AbstractProcessor {
         // Generate and collect all of the template classes
         final List<MethodSpec> methods = new ArrayList<>();
 
-        for (final Map.Entry<String, Template> entry : mTemplates.entrySet()) {
-            final String resName = entry.getKey();
-            final Template template = entry.getValue();
-
-            final TypeSpec typeSpec = generateClassForTemplate(resName, template, buildable);
+        for (final Template template : mTemplates.values()) {
+            final TypeSpec typeSpec = generateClassForTemplate(template, buildable);
 
             final ClassName templateClass = ClassName.get(PACKAGE_NAME, typeSpec.name);
             final MethodSpec method =
-                    MethodSpec.methodBuilder(template.getName())
+                    MethodSpec.methodBuilder(template.getTemplateName())
                               .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                               .returns(templateClass)
-                              .addStatement("return new $N()", typeSpec)
+                              .addParameter(
+                                      ParameterSpec.builder(CONTEXT, "context")
+                                                   .addAnnotation(NONNULL)
+                                                   .build())
+                              .addStatement("return new $N(context)", typeSpec)
                               .build();
             methods.add(method);
 
